@@ -40,7 +40,7 @@ class IconPagesPlugin(PluginClass):
 This plugin shows the page index with a small icon for each page.
 Icons can be set for individual pages with a "[ICON=name]" shortcode.
 '''),  # T: plugin description
-		'author': '',
+		'author': 'Lumenman',
 		'help': 'Plugins:IconPages',
 	}
 

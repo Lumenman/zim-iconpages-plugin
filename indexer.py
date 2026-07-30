@@ -40,22 +40,25 @@ class IconsIndexer(IndexerBase):
 	#: nobody left to read it, so it is cleaned up on startup.
 	LEGACY_PLUGIN_NAME = 'icontags'
 
-	INIT_SCRIPT = '''
-		CREATE TABLE IF NOT EXISTS iconlist (
-			id TEXT PRIMARY KEY,
-			icon TEXT
-		);
-		INSERT OR REPLACE INTO zim_index VALUES (%r, %r);
-	''' % (PLUGIN_NAME, PLUGIN_DB_FORMAT)
-
-	TEARDOWN_SCRIPT = '''
-		DROP TABLE IF EXISTS "iconlist";
-		DELETE FROM zim_index WHERE key = %r;
-		DELETE FROM zim_index WHERE key = %r;
-	''' % (PLUGIN_NAME, LEGACY_PLUGIN_NAME)
-
 	# define signals we want to use - (closure type, return type and arg types)
 	__signals__ = {'iconlist-changed': (None, None, (object,))}
+
+	@classmethod
+	def setup_db(cls, db):
+		db.execute('''
+			CREATE TABLE IF NOT EXISTS iconlist (
+				id TEXT PRIMARY KEY,
+				icon TEXT
+			);
+		''')
+		db.execute('INSERT OR REPLACE INTO zim_index VALUES (?, ?)', 
+				   (cls.PLUGIN_NAME, cls.PLUGIN_DB_FORMAT))
+
+	@classmethod
+	def teardown_db(cls, db):
+		db.execute('DROP TABLE IF EXISTS "iconlist"')
+		db.execute('DELETE FROM zim_index WHERE key = ?', (cls.PLUGIN_NAME,))
+		db.execute('DELETE FROM zim_index WHERE key = ?', (cls.LEGACY_PLUGIN_NAME,))
 
 	@classmethod
 	def new_from_index(cls, index):
@@ -66,7 +69,7 @@ class IconsIndexer(IndexerBase):
 	def __init__(self, db, pagesindexer):
 		IndexerBase.__init__(self, db)
 
-		self.db.executescript(self.INIT_SCRIPT)
+		self.setup_db(self.db)
 
 		self.connectto_all(pagesindexer, (
 			'page-changed', 'page-row-deleted'
@@ -141,14 +144,10 @@ class IconsIndexer(IndexerBase):
 		name was found, or C{False} if none was found.
 		'''
 		def find_text(token_iter):
-			# NOTE: the default for next() is required. This runs inside
-			# the for-loop below, over the *same* iterator, and a bare
-			# next() on an exhausted iterator raises StopIteration that
-			# the for statement does not swallow - it would propagate out
-			# and break indexing of the page. An empty bold run ("****"
-			# at the very end of a page) is enough to trigger that.
+			# Используем default=None для безопасного обхода StopIteration внутри цикла
 			token = next(token_iter, None)
 			text = token[1] if token is not None and token[0] == TEXT else ''
+				
 			skip_to_end_token(token_iter, STRONG)
 			return text
 

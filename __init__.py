@@ -111,11 +111,7 @@ class IconPagesNotebookExtension(NotebookExtension):
 			return
 
 		if self.index.get_property(IconsIndexer.PLUGIN_NAME) != IconsIndexer.PLUGIN_DB_FORMAT:
-			# Table missing, or left over from an older/incompatible
-			# version of the plugin - drop it and rebuild from scratch.
-			# This also covers the rename from "IconTags": the table
-			# layout is unchanged, but the key in "zim_index" is not.
-			self.index._db.executescript(IconsIndexer.TEARDOWN_SCRIPT)  # XXX private API
+			IconsIndexer.teardown_db(self.index._db)
 			rebuild = True
 		else:
 			rebuild = False
@@ -254,7 +250,9 @@ class IconPagesNotebookExtension(NotebookExtension):
 		self.disconnect_from(self.indexer)
 		self.indexer.disconnect_all()
 		self.index.update_iter.remove_indexer(self.indexer)
-		self.index._db.executescript(IconsIndexer.TEARDOWN_SCRIPT)  # XXX private API
+		
+		IconsIndexer.teardown_db(self.index._db)
+		
 		self.index.set_property(IconsIndexer.PLUGIN_NAME, None)
 		self.indexer = None
 

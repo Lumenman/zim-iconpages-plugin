@@ -11,6 +11,9 @@ import sys, traceback
 import tests, zim.config, zim.plugins
 from zim.plugins import PluginManager, find_extension
 from zim.notebook import Path
+from zim.plugins.pageindex import PageTreeStoreBase
+
+ICON_COL = len(PageTreeStoreBase.COLUMN_TYPES)
 
 zim.config.manager.makeConfigManagerVirtual()
 zim.plugins.resetPluginManager()
@@ -110,7 +113,7 @@ try:
 		return None
 	treeiter = find_row(model.get_iter_first(), 'Home')
 	assert treeiter is not None
-	icon = model.get_value(treeiter, 7)
+	icon = model.get_value(treeiter, ICON_COL)
 	assert icon is not None
 	print('OK - side panel model shows the corrected icon')
 

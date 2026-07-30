@@ -14,6 +14,9 @@ import zim.config
 import zim.plugins
 from zim.plugins import PluginManager, find_extension
 from zim.notebook import Path
+from zim.plugins.pageindex import PageTreeStoreBase
+
+ICON_COL = len(PageTreeStoreBase.COLUMN_TYPES)
 
 zim.config.manager.makeConfigManagerVirtual()
 zim.plugins.resetPluginManager()
@@ -86,7 +89,7 @@ try:
 			treeiter = model.iter_next(treeiter)
 		return None
 	treeiter = find_row_for_page(model.get_iter_first(), 'Alpha')
-	icon1 = model.get_value(treeiter, 7)
+	icon1 = model.get_value(treeiter, ICON_COL)
 	print('icon pixbuf for Alpha in tree (after live edit, no full reload called):', icon1)
 	assert icon1 is not None
 
@@ -151,7 +154,7 @@ try:
 
 	def pixbuf_for(pagename):
 		treeiter = find_row_for_page(model.get_iter_first(), pagename)
-		return model.get_value(treeiter, 7)
+		return model.get_value(treeiter, ICON_COL)
 
 	# read the icon first, so the row is in the cache before the child appears
 	assert pixbuf_for('Beta') is ICONS.get_pixbuf(FILE_ICON, size), \

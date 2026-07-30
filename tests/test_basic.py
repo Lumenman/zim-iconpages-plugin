@@ -18,6 +18,9 @@ import zim.config
 import zim.plugins
 from zim.plugins import PluginManager, find_extension
 from zim.notebook import Path
+from zim.plugins.pageindex import PageTreeStoreBase
+
+ICON_COL = len(PageTreeStoreBase.COLUMN_TYPES)
 
 zim.config.manager.makeConfigManagerVirtual()
 zim.plugins.resetPluginManager()
@@ -109,7 +112,7 @@ try:
 	def walk(treeiter, depth=0):
 		while treeiter is not None:
 			name = model.get_value(treeiter, 0)
-			icon = model.get_value(treeiter, 7)
+			icon = model.get_value(treeiter, ICON_COL)
 			print('  ' * depth + '- %s (icon=%s)' % (name, 'yes' if icon is not None else 'no'))
 			child = model.iter_children(treeiter)
 			if child is not None:
@@ -144,7 +147,7 @@ try:
 	):
 		treeiter = find_row_for_page(model.get_iter_first(), pagename)
 		assert treeiter is not None, pagename
-		icon = model.get_value(treeiter, 7)
+		icon = model.get_value(treeiter, ICON_COL)
 		print('  %-16s -> %s' % (pagename, label))
 		assert icon is expected, '%s got the wrong default icon' % pagename
 	print('OK - default icons follow "has children"')

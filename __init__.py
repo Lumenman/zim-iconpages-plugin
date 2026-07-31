@@ -297,12 +297,24 @@ class IconPagesNotebookViewExtension(NotebookViewExtension):
 
 	@action(_('_Rescan Icons'), menuhints='tools')  # T: menu item
 	def rescan_icons(self):
-		'''Re-read every page and refresh the icon index.
+		'''Refresh the icons shown in the side pane.
 
-		Goes straight to the notebook extension rather than through the
-		side pane: the scan pushes per-page updates, so the tree keeps
-		its expanded branches and scroll position.
+		Two independent things can be stale, and the action has to cover
+		both - covering only the second one is what made it look like it
+		did nothing at all after the icon files were replaced:
+
+		  1. the icon *files*: the file listing and the rendered pixbufs
+		     are cached process-wide in L{ICONS}, so a file added to or
+		     replaced in the "icons" folder is not picked up until the
+		     caches are dropped;
+		  2. the page -> icon *name* mapping in the index, which the
+		     notebook extension refreshes by re-reading every page.
+
+		Neither path rebuilds the tree model, so expanded branches and
+		scroll position survive (see MAINTENANCE.md).
 		'''
+		self.widget.refresh_icons()
+
 		if self.notebook_ext is None:
 			logger.warning('IconPages: cannot rescan - no notebook extension')
 			return

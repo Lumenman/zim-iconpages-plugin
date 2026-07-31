@@ -131,6 +131,17 @@ class IconsTreeStore(PagesTreeModelMixin, PageTreeStoreBase):
 		self._cache.clear()
 		PagesTreeModelMixin.teardown(self)
 
+	def invalidate_icons(self):
+		'''Drop every cached row, so the next redraw recomputes each
+		pixbuf from L{ICONS}.
+
+		Used after the icon *files* on disk changed - the page -> icon
+		name mapping in the index is still correct in that case, so
+		nothing emits C{iconlist-changed} and no row would ever be
+		recomputed on its own.
+		'''
+		self._cache.clear()
+
 	def update_page(self, pagename):
 		'''Drop C{pagename} from the cache and refresh it in the view.'''
 		self._cache.pop(pagename, None)
@@ -177,6 +188,57 @@ class IconsPageTreeView(PageTreeView):
 		pages_column.pack_start(cr_icon, False)
 		pages_column.reorder(cr_icon, 0)
 		pages_column.set_attributes(cr_icon, pixbuf=ICON_COL)
+
+	# --- diagnostics -------------------------------------------------
+	#
+	# The autoexpand/autocollapse machinery is entirely inherited from
+	# PageTreeView and deliberately not overridden (see MAINTENANCE.md,
+	# "ничего не добавлять поверх set_current_page()"). The two overrides
+	# below add *nothing* but a log line each: they exist because "the
+	# branch sometimes stays expanded" is impossible to tell apart from
+	# the three cases where the core skips collapsing on purpose. Both
+	# call straight through to the parent, and both are no-ops unless
+	# zim is started with "--debug".
+
+	def set_current_page(self, path, vivificate=False):
+		if logger.isEnabledFor(logging.DEBUG):
+			logger.debug(
+				'IconPages: set_current_page(%s) selected=%s autoexpand=%s autocollapse=%s',
+				path, self.get_selected_path(), self._autoexpand, self._autocollapse)
+		treepath = PageTreeView.set_current_page(self, path, vivificate)
+		if treepath is None:
+			logger.debug(
+				'IconPages: no row for %s - nothing selected, nothing collapsed', path)
+		return treepath
+
+	def restore_autoexpanded_path(self):
+		if logger.isEnabledFor(logging.DEBUG):
+			self._log_autocollapse_decision()
+		PageTreeView.restore_autoexpanded_path(self)
+
+	def _log_autocollapse_decision(self):
+		'''Report which branch of C{restore_autoexpanded_path()} is about
+		to be taken. Wrapped in its own try/except: a broken log line must
+		never be able to take the side pane down.
+		'''
+		try:
+			if not self._autoexpanded:
+				logger.debug('IconPages: no collapse - nothing was auto-expanded')
+				return
+			ref1, ref2 = self._autoexpanded
+			if not ref1.valid() or (ref2 is not None and not ref2.valid()):
+				logger.debug('IconPages: no collapse - stale TreeRowReference')
+				return
+			prev = ref1.get_path()
+			if self.get_any_children_expanded(prev):
+				logger.debug(
+					'IconPages: no collapse - a child of %s is expanded', prev)
+			else:
+				logger.debug(
+					'IconPages: collapsing %s back to %s',
+					prev, ref2.get_path() if ref2 is not None else 'top level')
+		except Exception:
+			logger.exception('IconPages: could not log autocollapse decision')
 
 
 class IconPagesPluginWidget(Gtk.VBox, WindowSidePaneWidget):
@@ -302,6 +364,30 @@ class IconPagesPluginWidget(Gtk.VBox, WindowSidePaneWidget):
 		model = self.treeview.get_model()
 		if isinstance(model, IconsTreeStore):
 			model.update_page(pagename)
+
+	def refresh_icons(self):
+		'''Re-read the icon files from disk and redraw the tree.
+
+		The other half of the "Rescan Icons" action: L{rescan()} on the
+		notebook extension refreshes the page -> icon *name* mapping,
+		this refreshes the *images* those names resolve to. Without it,
+		adding or replacing a file in the "icons" folder has no visible
+		effect until Zim is restarted - the file listing and the
+		rendered pixbufs are both cached in the process-wide L{ICONS}
+		store, and a page whose shortcode did not change never emits
+		C{iconlist-changed} to trigger a redraw either.
+
+		Deliberately does not call reload_model(): dropping the caches
+		and asking for a redraw is enough, and rebuilding the model
+		would collapse the tree (see MAINTENANCE.md).
+		'''
+		ICONS.clear_cache()
+		model = self.treeview.get_model()
+		if isinstance(model, IconsTreeStore):
+			model.invalidate_icons()
+		# GtkTreeView pulls every cell value from the model again while
+		# drawing, so an empty row cache plus a redraw is all it takes.
+		self.treeview.queue_draw()
 
 	def insert_icon(self, pageview):
 		'''Run the "Insert Icon" dialog for C{pageview}.'''

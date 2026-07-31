@@ -7,8 +7,9 @@
 helpers to read/write the "[ICON=name]" shortcode that is stored in the
 wiki text.
 
-Both PNG and SVG files are supported (SVG needs the librsvg loader
-for GdkPixbuf; see L{_check_svg_support}).
+SVG, PNG and ICO files are supported, as far as the local GdkPixbuf
+can decode them (SVG needs the librsvg loader; see
+L{_get_supported_extensions}).
 
 Icons are *not* installed into Zim's own data folder. They ship inside
 this plugin's own folder (in the "icons" sub-folder next to this file),
@@ -34,37 +35,55 @@ ICONS_DIR = os.path.join(PLUGIN_DIR, 'icons')
 DEFAULT_ICON_SIZE = 16
 
 #: Icon file extensions, in order of preference when the same icon name
-#: exists in more than one format. SVG comes first: it is rendered *at*
-#: the requested size rather than scaled up from a fixed bitmap, which
-#: matters because the icon size preference goes up to 64px, well past
-#: the 16px of the bundled PNGs.
-ICON_EXTENSIONS = ('.svg', '.png')
+#: exists in more than one format.
+#:
+#: SVG comes first: it is rendered *at* the requested size rather than
+#: scaled up from a fixed bitmap, which matters because the icon size
+#: preference goes up to 64px, well past the 16px of the bundled PNGs.
+#:
+#: PNG before ICO: an .ico is just a container of fixed-size bitmaps, so
+#: it has nothing to offer over a plain PNG here - GdkPixbuf picks one of
+#: the contained images and scales it exactly like it would a PNG - while
+#: the older variants of the format (palette colour, AND-mask
+#: transparency) are the ones most likely to render badly. It is
+#: supported because Windows icon sets ship in it, not because it is a
+#: good source format.
+ICON_EXTENSIONS = ('.svg', '.png', '.ico')
 
-_svg_supported = None  # cached result of _check_svg_support()
+_supported_extensions = None  # cached result of _get_supported_extensions()
 
 
-def _check_svg_support():
-	'''Returns C{True} when GdkPixbuf can decode SVG.
+def _get_supported_extensions():
+	'''Returns the subset of L{ICON_EXTENSIONS} that this GdkPixbuf
+	install can actually decode.
 
-	SVG is not built into GdkPixbuf - it comes from a separate loader
-	module (librsvg). That loader is present on most Linux desktops and
-	in the usual Windows GTK bundle, but not always; Zim's own core code
-	says as much (see C{zim/gui/__init__.py}, where only png is scanned
-	"not all installs have svg support"). Without the check every .svg
-	icon would silently turn into the red "no image" placeholder with no
-	hint as to why, so detect it once and say so in the log instead.
+	Not every format is built in: SVG comes from a separate loader module
+	(librsvg), present on most Linux desktops and in the usual Windows
+	GTK bundle, but not always - Zim's own core code says as much (see
+	C{zim/gui/__init__.py}, where only png is scanned "not all installs
+	have svg support"). ICO is normally built in, but there is no reason
+	to take that on faith either. Without this check an icon in a format
+	the local install cannot read would silently turn into the red "no
+	image" placeholder with no hint as to why, so detect it once and say
+	so in the log instead.
+
+	Falls back to PNG only when GdkPixbuf cannot be queried at all: PNG
+	is the one format Zim itself already relies on being present, and
+	claiming support that is not there is what produces the silent
+	placeholders this check exists to prevent.
 	'''
-	global _svg_supported
-	if _svg_supported is None:
-		_svg_supported = False
+	global _supported_extensions
+	if _supported_extensions is None:
 		try:
+			available = set()
 			for fmt in GdkPixbuf.Pixbuf.get_formats():
-				if 'svg' in [e.lower() for e in fmt.get_extensions()]:
-					_svg_supported = True
-					break
+				available.update('.' + e.lower() for e in fmt.get_extensions())
+			_supported_extensions = frozenset(
+				ext for ext in ICON_EXTENSIONS if ext in available)
 		except Exception:
 			logger.exception('IconPages: could not query GdkPixbuf formats')
-	return _svg_supported
+			_supported_extensions = frozenset(('.png',))
+	return _supported_extensions
 
 # Special / reserved icon names.
 NO_IMAGE = '_no_image'                  # icon has no image
@@ -125,8 +144,8 @@ class IconStore(object):
 	def _scan(self):
 		names = {}
 		files = {}
-		svg_ok = _check_svg_support()
-		skipped_svg = []
+		supported = _get_supported_extensions()
+		skipped = []
 		try:
 			entries = sorted(os.listdir(self.icons_dir))
 		except OSError:
@@ -140,8 +159,8 @@ class IconStore(object):
 			ext = ext.lower()
 			if ext not in ICON_EXTENSIONS or not base:
 				continue
-			if ext == '.svg' and not svg_ok:
-				skipped_svg.append(fname)
+			if ext not in supported:
+				skipped.append(fname)
 				continue
 
 			key = base.lower()
@@ -158,11 +177,12 @@ class IconStore(object):
 			names[key] = base
 			files[key] = fname
 
-		if skipped_svg:
+		if skipped:
 			logger.warning(
-				'IconPages: %i SVG icon(s) ignored - this GdkPixbuf install has no SVG'
-				' loader (librsvg). Install it, or use PNG files instead. Ignored: %s',
-				len(skipped_svg), ', '.join(skipped_svg))
+				'IconPages: %i icon file(s) ignored - this GdkPixbuf install cannot'
+				' decode them (supported here: %s; SVG needs the librsvg loader).'
+				' Use PNG files instead. Ignored: %s',
+				len(skipped), ', '.join(sorted(supported)), ', '.join(skipped))
 
 		self._names = names
 		self._files = files
@@ -182,7 +202,8 @@ class IconStore(object):
 	def has_icon(self, name):
 		'''Case-insensitive check for whether an icon file exists for
 		C{name} (e.g. a shortcode "[ICON=Attachment]" matches a file
-		named "attachment.png", "Attachment.svg" or "ATTACHMENT.PNG").
+		named "attachment.png", "Attachment.svg", "attachment.ico" or
+		"ATTACHMENT.PNG").
 		'''
 		if self._names is None:
 			self._scan()

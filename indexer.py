@@ -76,7 +76,11 @@ class IconsIndexer(IndexerBase):
 		))
 
 	def on_page_changed(self, o, row, doc):
-		new_icon = self._extract_icon(doc.iter_tokens())
+		# doc is None for a page with no content at all (an empty file, or
+		# a row that only exists as the parent of its children). Handled
+		# here rather than in the callers so every caller gets it right:
+		# no content means no icon, and the old row has to go.
+		new_icon = self._extract_icon(doc.iter_tokens()) if doc is not None else False
 		if not new_icon:
 			self._ind_remove(row['name'])
 		else:

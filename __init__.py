@@ -95,6 +95,7 @@ class IconPagesNotebookExtension(NotebookExtension):
 		self._backfill_source = None  # GLib source id of the running scan
 		self._backfill_rows = []
 		self._backfill_pos = 0
+		self._backfill_failed = 0
 
 		self.connectto(self.index, 'new-update-iter', self._on_new_update_iter)
 		self._enable_indexer()
@@ -202,17 +203,31 @@ class IconPagesNotebookExtension(NotebookExtension):
 		for row in chunk:
 			try:
 				page = self.notebook.get_page(Path(row['name']))
-				tree = page.get_parsetree()
+				# get_page() hands out a cached Page, whose parse tree can
+				# be the one already in memory - the very copy a stale
+				# index row came from. check_source_changed() re-reads the
+				# file when its etag moved, and leaves an unsaved editor
+				# buffer alone (there, the buffer *is* the current state).
+				page.check_source_changed()
+				# Indexing errors (sqlite, a broken parse tree) must not
+				# escape either: this runs from an idle callback, so an
+				# exception here would leave _backfill_source set and make
+				# the next _cancel_backfill() remove an already-dead source.
+				self.indexer.on_page_changed(None, row, page.get_parsetree())
 			except Exception:
+				self._backfill_failed += 1
 				logger.exception(
-					'IconPages: failed to read page during icon scan: %s', row['name'])
-				continue
-			if tree is not None:
-				self.indexer.on_page_changed(None, row, tree)
+					'IconPages: failed to scan page for icons: %s', row['name'])
 
 		if self._backfill_pos >= len(self._backfill_rows):
-			dropped = self.indexer.drop_orphans()
-			logger.info('IconPages: icon scan finished (%i orphan rows removed)', dropped)
+			try:
+				dropped = self.indexer.drop_orphans()
+			except Exception:
+				dropped = 0
+				logger.exception('IconPages: failed to remove orphan icon rows')
+			logger.info(
+				'IconPages: icon scan finished (%i orphan rows removed, %i pages skipped)',
+				dropped, self._backfill_failed)
 			self._reset_backfill_state()
 			return False
 		return True
@@ -230,6 +245,7 @@ class IconPagesNotebookExtension(NotebookExtension):
 		self._backfill_source = None
 		self._backfill_rows = []
 		self._backfill_pos = 0
+		self._backfill_failed = 0
 
 	def on_iconlist_changed(self, indexer, pagename):
 		# Re-emit at the extension level: this object lives for as long

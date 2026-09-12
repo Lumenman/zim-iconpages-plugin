@@ -51,6 +51,9 @@ try:
 	os.makedirs(tmp_dir)
 	shutil.copy(ICONS.icons_dir + '/attachment.png', tmp_dir + '/Attachment.png')
 	shutil.copy(ICONS.icons_dir + '/next.png', tmp_dir + '/multi-word-name.png')
+	# A name the shortcode cannot express: inserting it would write
+	# "[ICON=with space]", which ICON_RE never matches.
+	shutil.copy(ICONS.icons_dir + '/next.png', tmp_dir + '/with space.png')
 
 	store = IconStore(tmp_dir)
 	assert store.has_icon('Attachment')
@@ -60,10 +63,13 @@ try:
 	assert store.get_pixbuf('ATTACHMENT', 16) is not None
 	assert store.has_icon('multi-word-name')
 	assert store.has_icon('Multi-Word-Name')
+	assert not store.has_icon('with space'), 'unusable name must not be an icon'
+	assert 'with space' not in store.list_names(), store.list_names()
 	print('OK - IconStore matches icon names case-insensitively')
 
 	# --- Part 1b: SVG support ---------------------------------------
-	from zim.plugins.iconpages.iconutils import _check_svg_support, ICON_EXTENSIONS
+	from zim.plugins.iconpages.iconutils import _get_supported_extensions, ICON_EXTENSIONS
+	have_svg = '.svg' in _get_supported_extensions()
 
 	SVG = '''<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
@@ -86,13 +92,13 @@ try:
 
 	svg_store = IconStore(svg_dir)
 	names = svg_store.list_names()
-	print('SVG loader available:', _check_svg_support())
+	print('SVG loader available:', have_svg)
 	print('names found:', names)
 
 	assert 'raster.png' not in names and 'raster' in names, names
 	assert '.hidden' not in names, 'dotfiles must not be offered as icons'
 
-	if _check_svg_support():
+	if have_svg:
 		assert 'vector' in names, names
 		assert svg_store.has_icon('VECTOR'), 'svg lookup must be case-insensitive too'
 		pixbuf = svg_store.get_pixbuf('vector', 48)

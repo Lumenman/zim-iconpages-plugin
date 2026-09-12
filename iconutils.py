@@ -116,10 +116,18 @@ def _generate_placeholder(size, rgba):
 # a page without disturbing the normal text layout, and so the indexer can
 # find it cheaply by only looking inside STRONG tokens.
 PREFIX, POSTFIX = '[ICON=', ']'
-# The name must be non-empty ("+", not "*"): "[ICON=]" is a typo, not a
-# request for an icon called "". Matching it would store a row with an
-# empty icon name in the index for no benefit.
-ICON_RE = re.compile(re.escape(PREFIX) + r'([^\s\]]+)' + re.escape(POSTFIX))
+#: What a usable icon name looks like - the one rule, shared by the
+#: shortcode pattern below and by the file scanner in L{IconStore} so the
+#: two cannot drift apart: a file whose name does not fit here would be
+#: offered in the "Insert Icon" dialog and then never match the shortcode
+#: that inserting it writes.
+#:
+#: Non-empty ("+", not "*"): "[ICON=]" is a typo, not a request for an
+#: icon called "". Matching it would store a row with an empty icon name
+#: in the index for no benefit.
+ICON_NAME_RE = re.compile(r'[^\s\]]+')
+ICON_RE = re.compile(
+	re.escape(PREFIX) + '(' + ICON_NAME_RE.pattern + ')' + re.escape(POSTFIX))
 
 
 def get_icon_markup(icon_name):
@@ -158,6 +166,12 @@ class IconStore(object):
 			base, ext = os.path.splitext(fname)
 			ext = ext.lower()
 			if ext not in ICON_EXTENSIONS or not base:
+				continue
+			if not ICON_NAME_RE.fullmatch(base):
+				logger.warning(
+					'IconPages: ignoring %s - an icon name cannot contain'
+					' whitespace or "]", so "%s%s%s" would never match.'
+					' Rename the file.', fname, PREFIX, base, POSTFIX)
 				continue
 			if ext not in supported:
 				skipped.append(fname)

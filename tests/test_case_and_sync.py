@@ -6,7 +6,7 @@
      immediately when the plugin loads, matching the built-in Page
      Index ("Содержание") panel - not only after the next page switch.
 '''
-import sys, traceback, os, shutil
+import sys, traceback, os, shutil, tempfile
 import tests, zim.config, zim.plugins
 from zim.plugins import PluginManager, find_extension
 from zim.notebook import Path
@@ -45,15 +45,12 @@ try:
 	# Simulate a user-added icon file with a capital letter in the name
 	# (e.g. as reported: works fine for "calendar", "some-word", but
 	# breaks for "Attachment").
-	tmp_dir = '/tmp/iconpages_case_test_icons'
-	if os.path.exists(tmp_dir):
-		shutil.rmtree(tmp_dir)
-	os.makedirs(tmp_dir)
-	shutil.copy(ICONS.icons_dir + '/attachment.png', tmp_dir + '/Attachment.png')
-	shutil.copy(ICONS.icons_dir + '/next.png', tmp_dir + '/multi-word-name.png')
+	tmp_dir = tempfile.mkdtemp(prefix='iconpages_case_test_icons')
+	shutil.copy(ICONS.icons_dir + '/_default_file.png', tmp_dir + '/Attachment.png')
+	shutil.copy(ICONS.icons_dir + '/_default_file.png', tmp_dir + '/multi-word-name.png')
 	# A name the shortcode cannot express: inserting it would write
 	# "[ICON=with space]", which ICON_RE never matches.
-	shutil.copy(ICONS.icons_dir + '/next.png', tmp_dir + '/with space.png')
+	shutil.copy(ICONS.icons_dir + '/_default_file.png', tmp_dir + '/with space.png')
 
 	store = IconStore(tmp_dir)
 	assert store.has_icon('Attachment')
@@ -85,8 +82,8 @@ try:
 		fh.write(SVG)
 	with open(svg_dir + '/Both.SVG', 'w') as fh:  # capitalized name AND extension
 		fh.write(SVG)
-	shutil.copy(ICONS.icons_dir + '/home.png', svg_dir + '/Both.png')
-	shutil.copy(ICONS.icons_dir + '/home.png', svg_dir + '/raster.png')
+	shutil.copy(ICONS.icons_dir + '/_default_file.png', svg_dir + '/Both.png')
+	shutil.copy(ICONS.icons_dir + '/_default_file.png', svg_dir + '/raster.png')
 	with open(svg_dir + '/.hidden.png', 'w') as fh:
 		fh.write('not an icon')
 
@@ -121,8 +118,8 @@ try:
 	plugin = PluginManager.load_plugin('iconpages')
 
 	content = {
-		'CapitalIcon': '**[ICON=Attachment]**\n',
-		'LowerIcon': '**[ICON=attachment]**\n',
+		'CapitalIcon': '**[ICON=_Default_File]**\n',
+		'LowerIcon': '**[ICON=_default_file]**\n',
 		'MixedRepeat': 'text **[ICON=Attachment]** and again **[ICON=attachment]**\n',
 			# same icon, different case, repeated - must NOT count as ambiguous
 	}

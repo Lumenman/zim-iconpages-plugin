@@ -42,7 +42,7 @@ from .indexer import IconsView
 logger = logging.getLogger('zim.plugins.iconpages')
 
 
-# Вычисляем индекс динамически, чтобы избежать TypeError, если Zim изменит базовые колонки
+# Computed rather than hard-coded, so a change to the core columns cannot shift it
 ICON_COL = len(PageTreeStoreBase.COLUMN_TYPES)
 
 
@@ -57,7 +57,7 @@ class IconsTreeStore(PagesTreeModelMixin, PageTreeStoreBase):
 
 	COLUMN_TYPES = PageTreeStoreBase.COLUMN_TYPES + (GObject.TYPE_PYOBJECT,)  # ICON_COL
 
-	CACHE_MAX_SIZE = 500  # Максимальное количество страниц в кэше
+	CACHE_MAX_SIZE = 500  # max number of pages kept in the row cache
 
 	def __init__(self, index, iconsview, icon_size):
 		'''
@@ -83,7 +83,7 @@ class IconsTreeStore(PagesTreeModelMixin, PageTreeStoreBase):
 			if row is None:
 				row = self._compute_row(iter)
 			else:
-				# LRU: Перемещаем запрошенный элемент в конец (как недавно использованный)
+				# LRU: mark as most recently used
 				self._cache.move_to_end(name)
 				
 			return row[column]
@@ -102,7 +102,7 @@ class IconsTreeStore(PagesTreeModelMixin, PageTreeStoreBase):
 		
 		self._cache[page.name] = row
 		
-		# LRU: Если кэш превышает максимальный размер, удаляем самый старый элемент
+		# LRU: evict the oldest entry once over the limit
 		if len(self._cache) > self.CACHE_MAX_SIZE:
 			self._cache.popitem(last=False)
 			
@@ -202,9 +202,12 @@ class IconsPageTreeView(PageTreeView):
 
 	def set_current_page(self, path, vivificate=False):
 		if logger.isEnabledFor(logging.DEBUG):
-			logger.debug(
-				'IconPages: set_current_page(%s) selected=%s autoexpand=%s autocollapse=%s',
-				path, self.get_selected_path(), self._autoexpand, self._autocollapse)
+			try:  # private attributes - see _log_autocollapse_decision()
+				logger.debug(
+					'IconPages: set_current_page(%s) selected=%s autoexpand=%s autocollapse=%s',
+					path, self.get_selected_path(), self._autoexpand, self._autocollapse)
+			except Exception:
+				logger.exception('IconPages: debug logging failed')
 		treepath = PageTreeView.set_current_page(self, path, vivificate)
 		if treepath is None:
 			logger.debug(

@@ -101,6 +101,17 @@ try:
 	assert result is False, result
 	print('OK - truncated bold run handled')
 
+	step('a shortcode after a nested object in the same bold run is found')
+	from zim.formats import LINK
+	from zim.parse.tokenlist import TEXT, END
+	result = IconsIndexer._extract_icon(iter([
+		(STRONG, None), (TEXT, 'see '),
+		(LINK, {'href': 'Home'}), (TEXT, 'Home'), (END, LINK),
+		(TEXT, ' [ICON=home]'), (END, STRONG),
+	]))
+	assert result == 'home', result
+	print('OK - nested object does not hide the shortcode')
+
 	step('open main window (loads NotebookViewExtension + side pane widget)')
 	mainwindow = setUpMainWindow(notebook, path='Home')
 	ext = find_extension(mainwindow.pageview, __import__('zim.plugins.iconpages', fromlist=['x']).IconPagesNotebookViewExtension)
@@ -157,8 +168,8 @@ try:
 	insert_dialog = InsertIconDialog(mainwindow.pageview)
 	names_in_model = [row[1] for row in insert_dialog.model]
 	print('icons available in Insert Icon dialog:', names_in_model)
-	assert 'calendar' in names_in_model
-	insert_dialog._chosen = 'calendar'
+	assert '_default_file' in names_in_model
+	insert_dialog._chosen = '_default_file'
 	before = mainwindow.pageview.textview.get_buffer().get_text(
 		mainwindow.pageview.textview.get_buffer().get_start_iter(),
 		mainwindow.pageview.textview.get_buffer().get_end_iter(), True)
@@ -168,7 +179,7 @@ try:
 		mainwindow.pageview.textview.get_buffer().get_end_iter(), True)
 	print('buffer before:', repr(before))
 	print('buffer after :', repr(after))
-	assert after != before and 'ICON=calendar' in after
+	assert after != before and 'ICON=_default_file' in after
 	insert_dialog.destroy()
 	print('OK - Insert Icon dialog inserted shortcode into buffer')
 

@@ -11,7 +11,7 @@ in the page text (see L{iconutils}).
 import logging
 import sqlite3
 
-from zim.parse.tokenlist import TEXT, skip_to_end_token
+from zim.parse.tokenlist import TEXT, END
 from zim.formats import STRONG
 from zim.notebook.index.base import IndexerBase, IndexView
 
@@ -148,12 +148,23 @@ class IconsIndexer(IndexerBase):
 		name was found, or C{False} if none was found.
 		'''
 		def find_text(token_iter):
-			# Используем default=None для безопасного обхода StopIteration внутри цикла
-			token = next(token_iter, None)
-			text = token[1] if token is not None and token[0] == TEXT else ''
-				
-			skip_to_end_token(token_iter, STRONG)
-			return text
+			# Collect *all* text up to the matching end of the bold
+			# fragment: a nested object (link, image, ...) splits it into
+			# several TEXT tokens, and the shortcode may follow it. Same
+			# walk as skip_to_end_token() - a for loop, so an exhausted
+			# stream just ends it (see MAINTENANCE.md).
+			parts = []
+			nesting = 0
+			for t in token_iter:
+				if t[0] == STRONG:
+					nesting += 1
+				elif t == (END, STRONG):
+					nesting -= 1
+					if nesting < 0:
+						break
+				elif t[0] == TEXT:
+					parts.append(t[1])
+			return ''.join(parts)
 
 		found_names = []  # preserves order and original case
 		token_iter = iter(tokens)

@@ -206,7 +206,8 @@ class IconPagesNotebookExtension(NotebookExtension):
 				# get_page() hands out a cached Page, whose parse tree can
 				# be the one already in memory - the very copy a stale
 				# index row came from. check_source_changed() re-reads the
-				# file when its etag moved, and leaves an unsaved editor
+				# file when its etag moved (reloading an open editor buffer
+				# too, if it has no unsaved edits), and leaves an unsaved
 				# buffer alone (there, the buffer *is* the current state).
 				page.check_source_changed()
 				# Indexing errors (sqlite, a broken parse tree) must not
@@ -266,9 +267,9 @@ class IconPagesNotebookExtension(NotebookExtension):
 		self.disconnect_from(self.indexer)
 		self.indexer.disconnect_all()
 		self.index.update_iter.remove_indexer(self.indexer)
-		
+
 		IconsIndexer.teardown_db(self.index._db)
-		
+
 		self.index.set_property(IconsIndexer.PLUGIN_NAME, None)
 		self.indexer = None
 
@@ -288,18 +289,21 @@ class IconPagesNotebookViewExtension(NotebookViewExtension):
 		self.on_page_changed(pageview, pageview.page)
 		self.connectto(pageview, 'page-changed')
 
-		self.notebook_ext = find_extension(pageview.notebook, IconPagesNotebookExtension)
-		if self.notebook_ext is not None:
-			self.connectto(self.notebook_ext, 'iconlist-changed',
-				lambda o, pagename: self.widget.update_page(pagename))
-		else:
-			# Should not happen, but an exception raised here would take
-			# the whole side pane down (silently - the pane simply never
-			# appears). Degrade instead: icons still render, they just
-			# will not refresh live when a shortcode is edited.
+		try:
+			self.notebook_ext = find_extension(pageview.notebook, IconPagesNotebookExtension)
+		except ValueError:
+			# find_extension() raises rather than returning None. Should
+			# not happen, but letting it escape would take the whole side
+			# pane down (silently - the pane simply never appears).
+			# Degrade instead: icons still render, they just will not
+			# refresh live when a shortcode is edited.
+			self.notebook_ext = None
 			logger.warning(
 				'IconPages: no IconPagesNotebookExtension found for this notebook'
 				' - icons will not update live')
+		else:
+			self.connectto(self.notebook_ext, 'iconlist-changed',
+				lambda o, pagename: self.widget.update_page(pagename))
 
 	def on_page_changed(self, pageview, page):
 		self.widget.set_page(page)

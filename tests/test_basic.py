@@ -168,8 +168,8 @@ try:
 	insert_dialog = InsertIconDialog(mainwindow.pageview)
 	names_in_model = [row[1] for row in insert_dialog.model]
 	print('icons available in Insert Icon dialog:', names_in_model)
-	assert '_default_file' in names_in_model
-	insert_dialog._chosen = '_default_file'
+	assert 'crosshairs' in names_in_model
+	insert_dialog._chosen = 'crosshairs'
 	before = mainwindow.pageview.textview.get_buffer().get_text(
 		mainwindow.pageview.textview.get_buffer().get_start_iter(),
 		mainwindow.pageview.textview.get_buffer().get_end_iter(), True)
@@ -179,7 +179,7 @@ try:
 		mainwindow.pageview.textview.get_buffer().get_end_iter(), True)
 	print('buffer before:', repr(before))
 	print('buffer after :', repr(after))
-	assert after != before and 'ICON=_default_file' in after
+	assert after != before and 'ICON=crosshairs' in after
 	insert_dialog.destroy()
 	print('OK - Insert Icon dialog inserted shortcode into buffer')
 
@@ -196,7 +196,10 @@ try:
 	assert ext.widget.treeview.get_model() is model_before, \
 		'rescan replaced the tree model - it must only push per-page updates'
 	view2 = IconsView.new_from_index(notebook.index)
-	assert view2.get_icon('Home') == 'home', view2.get_icon('Home')
+	# The Insert Icon step above added [ICON=crosshairs] next to the
+	# existing [ICON=home] in the (unsaved) buffer of the open page, and
+	# rescan reads that buffer - see MAINTENANCE.md.
+	assert view2.get_icon('Home') == SEVERAL_ICONS, view2.get_icon('Home')
 	print('OK - rescan completed, model untouched, icons still correct')
 
 	step('remove plugin (full teardown drops the table)')

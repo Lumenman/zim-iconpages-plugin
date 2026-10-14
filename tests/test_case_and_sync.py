@@ -53,6 +53,10 @@ try:
 	shutil.copy(ICONS.icons_dir + '/_default_file.png', tmp_dir + '/with space.png')
 
 	store = IconStore(tmp_dir)
+	# The first lookup scans the dir and warns about "with space.png" -
+	# expected here, but the zim test harness turns warnings into errors.
+	with tests.LoggingFilter('zim.plugins.iconpages', 'IconPages: ignoring with space.png'):
+		store.list_names()
 	assert store.has_icon('Attachment')
 	assert store.has_icon('attachment'), 'lowercase lookup must match capitalized file'
 	assert store.has_icon('ATTACHMENT'), 'uppercase lookup must match capitalized file'

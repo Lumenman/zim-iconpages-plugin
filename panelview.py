@@ -337,18 +337,22 @@ class IconPagesPluginWidget(Gtk.VBox, WindowSidePaneWidget):
 				expanded.append(old_model.get_indexpath(treeiter).name)
 			self.treeview.map_expanded_rows(remember)
 
+		# The auto-expand bookkeeping (XXX private, no public API) holds
+		# row references into the old model. Keep its tree paths - the
+		# new model is built from the same index, so they point at the
+		# same rows - and re-create the references below.
+		autoexpanded = None
+		if self.treeview._autoexpanded:
+			ref1, ref2 = self.treeview._autoexpanded
+			if ref1.valid() and (ref2 is None or ref2.valid()):
+				autoexpanded = (ref1.get_path(), ref2.get_path() if ref2 else None)
+
 		self.treeview.disconnect_index()  # drop the old model's index signal connections
 		iconsview = self._get_iconsview()
 		self._applied_icon_size = self.plugin.preferences['icon_size']
 		model = IconsTreeStore(self.index, iconsview, self._applied_icon_size)
 		self.treeview.set_model(model)
 
-		self.treeview._autoexpanded = None  # XXX no public API to reset this
-
-		# Re-expand before set_page(): _store_expanded_path() records the
-		# row to collapse back to on the next switch, and it must see the
-		# restored expansion state to record the same row the built-in
-		# pane has.
 		for name in expanded:
 			try:
 				treepaths = model.find_all(Path(name))
@@ -356,6 +360,20 @@ class IconPagesPluginWidget(Gtk.VBox, WindowSidePaneWidget):
 				continue
 			for treepath in treepaths:
 				self.treeview.expand_row(treepath, False)
+
+		# Restore the bookkeeping *after* re-expanding: set_page() below
+		# first collapses the auto-expanded branch back to what it was
+		# before, then auto-expands it again and records the same
+		# collapse target the built-in pane has. Recording it against
+		# the re-expanded rows instead would make the next page switch
+		# leave this branch open.
+		if autoexpanded:
+			path1, path2 = autoexpanded
+			self.treeview._autoexpanded = (
+				Gtk.TreeRowReference(model, path1),
+				Gtk.TreeRowReference(model, path2) if path2 else None)
+		else:
+			self.treeview._autoexpanded = None
 
 		if self._current_page is not None:
 			self.set_page(self._current_page)

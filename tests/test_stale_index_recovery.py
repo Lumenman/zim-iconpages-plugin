@@ -46,7 +46,12 @@ t.setUpClass()
 try:
 	plugin = PluginManager.load_plugin('iconpages')
 
-	content = {'Home': '**[ICON=attachment]**\n', 'Other': 'no icon\n'}
+	# 'Other:Child' gives expand_all() a branch to expand below.
+	content = {
+		'Home': '**[ICON=attachment]**\n',
+		'Other': 'no icon\n',
+		'Other:Child': 'child\n',
+	}
 	notebook = t.setUpNotebook(content=content)
 	notebook.index.check_and_update()
 

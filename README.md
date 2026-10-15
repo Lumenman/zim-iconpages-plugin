@@ -237,5 +237,10 @@ DropBox/OneDrive/аналогичного сервиса и тот на мгно
 ## Лицензия
 
 Код плагина — под лицензией MIT, см. [LICENSE](LICENSE). На значки в
-`icons/` она не распространяется: откуда они взяты, не записано, и права на
-них могут принадлежать их авторам.
+`icons/` она не распространяется:
+
+- `crown-3.svg`, `comment-3.svg`, `crosshairs.svg`, `arrow-external.svg` —
+  из набора [Glyphs Poly](https://github.com/gorango/glyphs) (Goran
+  Spasojevic), лицензия MIT, см. [icons/LICENSE-glyphs](icons/LICENSE-glyphs);
+- `_default_file.png`, `_default_folder.png` — откуда взяты, не записано, и
+  права на них могут принадлежать их авторам.
